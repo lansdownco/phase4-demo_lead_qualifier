@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, tasks } from "@trigger.dev/sdk/v3";
 import { createClient } from "@/lib/supabase/server";
+import { getUserSubscription, getTodayUsageCount } from "@/lib/subscription";
 
 interface LeadPayload {
   companyName: string;
@@ -42,6 +43,17 @@ export async function POST(req: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorised." }, { status: 401 });
+    }
+
+    const subscription = await getUserSubscription(user.id);
+    if (subscription?.status !== "active") {
+      const usageCount = await getTodayUsageCount(user.id);
+      if (usageCount >= 2) {
+        return NextResponse.json(
+          { error: "limit_reached", usageCount, limit: 2 },
+          { status: 429 },
+        );
+      }
     }
 
     const body: unknown = await req.json();

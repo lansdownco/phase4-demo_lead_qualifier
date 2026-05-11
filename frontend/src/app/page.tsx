@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import LeadForm from "@/components/LeadForm";
 import QualificationResult from "@/components/QualificationResult";
+import UpgradePrompt from "@/components/UpgradePrompt";
+import SuccessBanner from "@/components/SuccessBanner";
 import { createClient } from "@/lib/supabase/client";
 
 interface RunSession {
@@ -18,10 +20,34 @@ export default function HomePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const [limitReached, setLimitReached] = useState(false);
+  const [todayCount, setTodayCount] = useState(0);
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  const [subscription, setSubscription] = useState<{ status: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/user/status")
+      .then((r) => r.json())
+      .then((d) => {
+        setSubscription(d.subscription ?? null);
+        setTodayCount(d.todayCount ?? 0);
+      })
+      .catch(() => {});
+
+    if (window.location.search.includes("upgraded=true")) {
+      setShowSuccessBanner(true);
+      window.history.replaceState({}, "", "/");
+    }
+  }, []);
+
+  const isPro = subscription?.status === "active";
+
   async function handleSubmit(formData: Record<string, string>) {
     setIsSubmitting(true);
     setSubmitError(null);
     setSession(null);
+    setLimitReached(false);
 
     try {
       const res = await fetch("/api/qualify", {
@@ -30,6 +56,18 @@ export default function HomePage() {
         body: JSON.stringify(formData),
       });
 
+      if (res.status === 429) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          usageCount?: number;
+        };
+        if (data.error === "limit_reached") {
+          setLimitReached(true);
+          setTodayCount(data.usageCount ?? 2);
+          return;
+        }
+      }
+
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? `Request failed (${res.status})`);
@@ -37,11 +75,31 @@ export default function HomePage() {
 
       const data = (await res.json()) as { runId: string; publicToken: string };
       setSession(data);
+      setTodayCount((c) => c + 1);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleUpgrade() {
+    setIsUpgrading(true);
+    try {
+      const res = await fetch("/api/stripe/checkout", { method: "POST" });
+      const { url } = (await res.json()) as { url: string };
+      window.location.href = url;
+    } catch {
+      setIsUpgrading(false);
+    }
+  }
+
+  async function handleManageSubscription() {
+    try {
+      const res = await fetch("/api/stripe/portal", { method: "POST" });
+      const { url } = (await res.json()) as { url: string };
+      window.location.href = url;
+    } catch {}
   }
 
   async function handleSignOut() {
@@ -53,6 +111,10 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-canvas flex flex-col">
+      {showSuccessBanner && (
+        <SuccessBanner onDismiss={() => setShowSuccessBanner(false)} />
+      )}
+
       {/* ── Header ──────────────────────────────────────── */}
       <header className="border-b border-dim">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
@@ -64,6 +126,11 @@ export default function HomePage() {
             <span className="font-ui text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
               Lead Qualifier
             </span>
+            {isPro && (
+              <span className="font-ui text-[9px] font-bold uppercase tracking-[0.18em] text-hot border border-hot/30 px-2 py-0.5">
+                Pro
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-5">
@@ -72,7 +139,20 @@ export default function HomePage() {
               <span className="text-mid">·</span>
               <span>DeepSeek</span>
             </div>
+            {!isPro && (
+              <span className="font-ui text-[10px] font-semibold tabular-nums text-ghost">
+                {todayCount} / 2 today
+              </span>
+            )}
             <div className="w-px h-4 bg-dim" />
+            {isPro && (
+              <button
+                onClick={handleManageSubscription}
+                className="font-ui text-[10px] font-semibold uppercase tracking-[0.18em] text-muted hover:text-primary transition-colors"
+              >
+                Manage Plan
+              </button>
+            )}
             <Link
               href="/history"
               className="font-ui text-[10px] font-semibold uppercase tracking-[0.18em] text-muted hover:text-primary transition-colors"
@@ -115,10 +195,18 @@ export default function HomePage() {
           </div>
 
           <div className="lg:sticky lg:top-10">
-            <QualificationResult
-              runId={session?.runId ?? null}
-              publicToken={session?.publicToken ?? null}
-            />
+            {limitReached ? (
+              <UpgradePrompt
+                usedCount={todayCount}
+                onUpgrade={handleUpgrade}
+                isLoading={isUpgrading}
+              />
+            ) : (
+              <QualificationResult
+                runId={session?.runId ?? null}
+                publicToken={session?.publicToken ?? null}
+              />
+            )}
           </div>
         </div>
       </main>
