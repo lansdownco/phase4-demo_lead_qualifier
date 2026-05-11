@@ -59,12 +59,13 @@ export async function POST(req: NextRequest) {
       scopes: { read: { runs: [run.id] } },
     });
 
-    await supabase.from("lead_runs").insert({
+    const { error: insertError } = await supabase.from("lead_runs").insert({
       user_id: user.id,
       run_id: run.id,
       company_name: body.companyName,
       industry: body.industry,
     });
+    if (insertError) console.error("[lead_runs insert]", insertError);
 
     return NextResponse.json({ runId: run.id, publicToken });
   } catch (err) {
