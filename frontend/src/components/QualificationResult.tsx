@@ -1,6 +1,8 @@
 "use client";
 
 import { useRealtimeRun } from "@trigger.dev/react-hooks";
+import { useEffect, useRef } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 interface QualificationOutput {
   score: number;
@@ -61,17 +63,15 @@ const TIER = {
 function ScoreRing({ score, tier }: { score: number; tier: "Hot" | "Warm" | "Cold" }) {
   const cfg = TIER[tier];
   const radius = 45;
-  const circ = 2 * Math.PI * radius; // ≈ 282.7
+  const circ = 2 * Math.PI * radius;
   const targetOffset = circ - (score / 100) * circ;
 
   return (
     <div className="relative flex items-center justify-center w-36 h-36 flex-shrink-0">
-      {/* Glow halo */}
       <div
         className="absolute inset-0 rounded-full blur-2xl"
         style={{ backgroundColor: cfg.glowColor }}
       />
-
       <svg
         width="144"
         height="144"
@@ -79,16 +79,7 @@ function ScoreRing({ score, tier }: { score: number; tier: "Hot" | "Warm" | "Col
         className="absolute inset-0 -rotate-90"
         aria-hidden="true"
       >
-        {/* Track ring */}
-        <circle
-          cx="72"
-          cy="72"
-          r={radius}
-          fill="none"
-          stroke="#1E1E26"
-          strokeWidth="1.5"
-        />
-        {/* Progress ring */}
+        <circle cx="72" cy="72" r={radius} fill="none" stroke="#1E1E26" strokeWidth="1.5" />
         <circle
           cx="72"
           cy="72"
@@ -99,13 +90,9 @@ function ScoreRing({ score, tier }: { score: number; tier: "Hot" | "Warm" | "Col
           strokeLinecap="round"
           strokeDasharray={circ}
           className="animate-ring-draw"
-          style={
-            { "--ring-target": targetOffset } as React.CSSProperties
-          }
+          style={{ "--ring-target": targetOffset } as React.CSSProperties}
         />
       </svg>
-
-      {/* Score number */}
       <div className="relative flex flex-col items-center animate-score-reveal">
         <span
           className="font-mono text-[44px] font-normal leading-none tabular-nums"
@@ -144,7 +131,6 @@ function TierBadge({ tier }: { tier: "Hot" | "Warm" | "Cold" }) {
 function ResultContent({ output }: { output: QualificationOutput }) {
   return (
     <div className="space-y-8">
-      {/* Score + Tier */}
       <div className="flex items-center gap-7">
         <ScoreRing score={output.score} tier={output.tier} />
         <div className="space-y-3">
@@ -155,11 +141,7 @@ function ResultContent({ output }: { output: QualificationOutput }) {
 
       <div className="h-px bg-dim" />
 
-      {/* Summary */}
-      <div
-        className="animate-fade-in-up"
-        style={{ animationDelay: "0.05s" }}
-      >
+      <div className="animate-fade-in-up" style={{ animationDelay: "0.05s" }}>
         <p className="font-ui text-[10px] font-semibold uppercase tracking-[0.2em] text-muted mb-3">
           Assessment
         </p>
@@ -168,7 +150,6 @@ function ResultContent({ output }: { output: QualificationOutput }) {
         </p>
       </div>
 
-      {/* Strengths */}
       {output.strengths.length > 0 && (
         <div className="animate-fade-in-up" style={{ animationDelay: "0.15s" }}>
           <p className="font-ui text-[10px] font-semibold uppercase tracking-[0.2em] text-hot mb-3">
@@ -189,7 +170,6 @@ function ResultContent({ output }: { output: QualificationOutput }) {
         </div>
       )}
 
-      {/* Concerns */}
       {output.concerns.length > 0 && (
         <div className="animate-fade-in-up" style={{ animationDelay: "0.3s" }}>
           <p className="font-ui text-[10px] font-semibold uppercase tracking-[0.2em] text-warm mb-3">
@@ -210,7 +190,6 @@ function ResultContent({ output }: { output: QualificationOutput }) {
         </div>
       )}
 
-      {/* Recommended Action */}
       <div
         className="animate-fade-in-up border-l border-accent pl-5 py-0.5"
         style={{ animationDelay: "0.45s" }}
@@ -231,15 +210,12 @@ function ResultContent({ output }: { output: QualificationOutput }) {
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      {/* Nested rotated squares — logo echo */}
       <div className="relative w-14 h-14 mb-7">
         <div className="absolute inset-0 border border-mid rotate-45" />
         <div className="absolute inset-2 border border-dim rotate-[22deg]" />
         <div className="absolute inset-4 border border-ghost rotate-[10deg]" />
       </div>
-      <p className="font-display text-2xl font-light text-muted italic mb-2">
-        Awaiting brief
-      </p>
+      <p className="font-display text-2xl font-light text-muted italic mb-2">Awaiting brief</p>
       <p className="font-ui text-[10px] font-semibold uppercase tracking-[0.2em] text-ghost">
         Complete the form to analyse
       </p>
@@ -252,15 +228,12 @@ function EmptyState() {
 function LoadingState({ status }: { status?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      {/* Concentric spinning rings */}
       <div className="relative w-14 h-14 mb-7">
         <div className="absolute inset-0 border border-accent/25 rounded-full spin-slow" />
         <div className="absolute inset-2 border border-accent/45 rounded-full spin-slow-reverse" />
         <div className="absolute inset-4 border border-accent/70 rounded-full spin-fast" />
       </div>
-      <p className="font-display text-2xl font-light text-primary italic mb-2">
-        Analysing&hellip;
-      </p>
+      <p className="font-display text-2xl font-light text-primary italic mb-2">Analysing&hellip;</p>
       {status && (
         <p className="font-mono text-[10px] text-ghost uppercase tracking-widest">
           {status.replace(/_/g, " ")}
@@ -285,37 +258,33 @@ function ErrorState({ message }: { message: string }) {
 
 /* ── Active Run (has hook) ──────────────────────────────── */
 
-function ActiveRun({
-  runId,
-  publicToken,
-}: {
-  runId: string;
-  publicToken: string;
-}) {
-  const { run, error } = useRealtimeRun(runId, {
-    accessToken: publicToken,
-  });
+function ActiveRun({ runId, publicToken }: { runId: string; publicToken: string }) {
+  const { run, error } = useRealtimeRun(runId, { accessToken: publicToken });
+  const savedRef = useRef(false);
 
   const isTerminal = run?.status != null && TERMINAL.has(run.status);
   const isSuccess = run?.status === "COMPLETED";
   const isError = isTerminal && !isSuccess;
 
-  if (error) {
-    return <ErrorState message={error.message} />;
-  }
+  useEffect(() => {
+    if (!isSuccess || !run?.output || savedRef.current) return;
+    savedRef.current = true;
 
-  if (isError) {
-    return <ErrorState message={`Run ended with status: ${run?.status ?? "unknown"}`} />;
-  }
+    const output = run.output as QualificationOutput;
+    const supabase = createClient();
+    supabase
+      .from("lead_runs")
+      .update({ score: output.score, tier: output.tier, summary: output.summary })
+      .eq("run_id", runId)
+      .then(({ error }) => {
+        if (error) console.error("[lead_runs update]", error);
+      });
+  }, [isSuccess, run?.output, runId]);
 
-  if (!isTerminal) {
-    return <LoadingState status={run?.status} />;
-  }
-
-  if (isSuccess && run?.output) {
-    return <ResultContent output={run.output as QualificationOutput} />;
-  }
-
+  if (error) return <ErrorState message={error.message} />;
+  if (isError) return <ErrorState message={`Run ended with status: ${run?.status ?? "unknown"}`} />;
+  if (!isTerminal) return <LoadingState status={run?.status} />;
+  if (isSuccess && run?.output) return <ResultContent output={run.output as QualificationOutput} />;
   return <LoadingState />;
 }
 
@@ -324,7 +293,6 @@ function ActiveRun({
 export default function QualificationResult({ runId, publicToken }: Props) {
   return (
     <div className="border border-dim bg-surface p-7 md:p-9">
-      {/* Panel header */}
       <div className="flex items-center gap-4 mb-8">
         <span className="font-ui text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">
           Analysis

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, tasks } from "@trigger.dev/sdk/v3";
+import { createClient } from "@/lib/supabase/server";
 
 interface LeadPayload {
   companyName: string;
@@ -34,6 +35,15 @@ function validate(body: unknown): body is LeadPayload {
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorised." }, { status: 401 });
+    }
+
     const body: unknown = await req.json();
 
     if (!validate(body)) {
@@ -47,6 +57,13 @@ export async function POST(req: NextRequest) {
 
     const publicToken = await auth.createPublicToken({
       scopes: { read: { runs: [run.id] } },
+    });
+
+    await supabase.from("lead_runs").insert({
+      user_id: user.id,
+      run_id: run.id,
+      company_name: body.companyName,
+      industry: body.industry,
     });
 
     return NextResponse.json({ runId: run.id, publicToken });

@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import LeadForm from "@/components/LeadForm";
 import QualificationResult from "@/components/QualificationResult";
+import { createClient } from "@/lib/supabase/client";
 
 interface RunSession {
   runId: string;
@@ -10,6 +13,7 @@ interface RunSession {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [session, setSession] = useState<RunSession | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -27,24 +31,24 @@ export default function HomePage() {
       });
 
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          error?: string;
-        };
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? `Request failed (${res.status})`);
       }
 
-      const data = (await res.json()) as {
-        runId: string;
-        publicToken: string;
-      };
+      const data = (await res.json()) as { runId: string; publicToken: string };
       setSession(data);
     } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : "Unknown error",
-      );
+      setSubmitError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/auth/login");
+    router.refresh();
   }
 
   return (
@@ -53,7 +57,6 @@ export default function HomePage() {
       <header className="border-b border-dim">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* Diamond mark */}
             <div className="relative w-5 h-5 flex-shrink-0">
               <div className="absolute inset-0 border border-accent rotate-45 scale-[0.72]" />
               <div className="absolute inset-0 border border-accent/35 rotate-[22deg] scale-90" />
@@ -63,17 +66,31 @@ export default function HomePage() {
             </span>
           </div>
 
-          <div className="flex items-center gap-3 text-[10px] font-ui font-semibold uppercase tracking-[0.18em] text-ghost">
-            <span>Trigger.dev</span>
-            <span className="text-mid">·</span>
-            <span>DeepSeek</span>
+          <div className="flex items-center gap-5">
+            <div className="flex items-center gap-3 text-[10px] font-ui font-semibold uppercase tracking-[0.18em] text-ghost">
+              <span>Trigger.dev</span>
+              <span className="text-mid">·</span>
+              <span>DeepSeek</span>
+            </div>
+            <div className="w-px h-4 bg-dim" />
+            <Link
+              href="/history"
+              className="font-ui text-[10px] font-semibold uppercase tracking-[0.18em] text-muted hover:text-primary transition-colors"
+            >
+              History
+            </Link>
+            <button
+              onClick={handleSignOut}
+              className="font-ui text-[10px] font-semibold uppercase tracking-[0.18em] text-ghost hover:text-muted transition-colors"
+            >
+              Sign out
+            </button>
           </div>
         </div>
       </header>
 
       {/* ── Main ────────────────────────────────────────── */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-6 md:px-12 py-12 md:py-20">
-        {/* Hero title */}
         <div className="mb-12 md:mb-16">
           <p className="font-ui text-[10px] font-bold uppercase tracking-[0.28em] text-accent mb-4">
             Intelligence Brief
@@ -83,17 +100,13 @@ export default function HomePage() {
             <em className="not-italic italic text-accent">lead</em>
           </h1>
           <p className="mt-4 font-ui text-sm text-muted max-w-xs leading-relaxed">
-            Fill in the prospect&rsquo;s details. Our AI analyses and scores
-            in real time.
+            Fill in the prospect&rsquo;s details. Our AI analyses and scores in real time.
           </p>
         </div>
 
-        {/* Two-column grid: form | result */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] xl:grid-cols-[1fr_440px] gap-10 xl:gap-16 items-start">
-          {/* Left — Form */}
           <div>
             <LeadForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
-
             {submitError && (
               <div className="mt-5 border border-red-900/40 bg-red-950/20 px-5 py-3.5">
                 <p className="font-ui text-xs text-red-400">{submitError}</p>
@@ -101,7 +114,6 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* Right — Result (sticky) */}
           <div className="lg:sticky lg:top-10">
             <QualificationResult
               runId={session?.runId ?? null}
@@ -117,9 +129,7 @@ export default function HomePage() {
           <span className="font-ui text-[10px] font-semibold uppercase tracking-[0.2em] text-ghost">
             Phase IV — AI Systems
           </span>
-          <span className="font-mono text-[10px] text-ghost">
-            proj_gwuusnkyphlcwsgbklon
-          </span>
+          <span className="font-mono text-[10px] text-ghost">proj_gwuusnkyphlcwsgbklon</span>
         </div>
       </footer>
     </div>
