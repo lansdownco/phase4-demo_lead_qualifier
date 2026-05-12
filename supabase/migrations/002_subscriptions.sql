@@ -17,3 +17,6 @@ CREATE POLICY "Users read own subscription"
 
 CREATE INDEX subscriptions_stripe_customer_id_idx ON subscriptions(stripe_customer_id);
 CREATE INDEX subscriptions_stripe_subscription_id_idx ON subscriptions(stripe_subscription_id);
+
+GRANT ALL ON TABLE public.subscriptions TO authenticated;
+GRANT ALL ON TABLE public.subscriptions TO service_role;
