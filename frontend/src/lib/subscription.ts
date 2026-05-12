@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export interface UserSubscription {
   status: string;
@@ -9,7 +9,7 @@ export interface UserSubscription {
 export async function getUserSubscription(
   userId: string,
 ): Promise<UserSubscription | null> {
-  const supabase = createClient();
+  const supabase = createServiceClient();
   const { data } = await supabase
     .from("subscriptions")
     .select("status, current_period_end, stripe_customer_id")
@@ -19,7 +19,7 @@ export async function getUserSubscription(
 }
 
 export async function getTodayUsageCount(userId: string): Promise<number> {
-  const supabase = createClient();
+  const supabase = createServiceClient();
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
